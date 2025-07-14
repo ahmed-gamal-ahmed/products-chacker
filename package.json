@@ -4,7 +4,6 @@
   "description": "Web application for checking products in inventory using barcodes",
   "main": "index.js",
   "scripts": {
-    "dev": "vite",
     "build": "vite build"
   },
   "dependencies": {
