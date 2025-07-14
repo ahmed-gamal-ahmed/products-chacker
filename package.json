@@ -1,5 +1,5 @@
 {
-  "name": "product-inventory-checker",
+  "name": "products-chacker",
   "version": "1.0.0",
   "description": "Web application for checking products in inventory using barcodes",
   "main": "index.js",
