@@ -1,15 +1,17 @@
 {
-  "name": "products-chacker",
+  "name": "product-inventory-checker",
   "version": "1.0.0",
   "description": "Web application for checking products in inventory using barcodes",
   "main": "index.js",
   "scripts": {
+    "dev": "vite",
     "build": "vite build"
   },
   "dependencies": {
     "lucide-react": "^0.294.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-qr-barcode-scanner": "^2.1.8",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
