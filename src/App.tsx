@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Download, Plus, Trash2, Save, Settings2, Menu, FileUp, Camera } from 'lucide-react';
+import { Download, Plus, Trash2, Save, Settings2, Menu, FileUp } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import BarcodeScannerComponent from 'react-qr-barcode-scanner';
 
 interface Product {
   id: string;
@@ -23,6 +22,8 @@ function App() {
   const [isSaved, setIsSaved] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
   const [autoAdd, setAutoAdd] = useState(true);
+  const [autoConfirmBarcode, setAutoConfirmBarcode] = useState(true);
+  const [autoConfirmQuantity, setAutoConfirmQuantity] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [comparison, setComparison] = useState<ComparisonRow[] | null>(null);
   const quantityInputRef = useRef<HTMLInputElement>(null);
@@ -31,7 +32,8 @@ function App() {
   const lastAutoAddValue = useRef<string>('');
   const sidebarRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [showScanner, setShowScanner] = useState(false);
+  const [showProductTable, setShowProductTable] = useState(true);
+  const barcodeDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load data from localStorage on component mount
   useEffect(() => {
@@ -65,20 +67,33 @@ function App() {
     }
   }, [products, isSaved]);
 
-  // Debounced auto-add logic
+  // Debounced auto-confirm for barcode input
   useEffect(() => {
-    if (autoAdd && barcode.trim() && quantity.trim() && /^\d+$/.test(quantity) && parseInt(quantity) > 0) {
+    if (autoConfirmBarcode && barcode.trim()) {
+      if (barcodeDebounceRef.current) clearTimeout(barcodeDebounceRef.current);
+      barcodeDebounceRef.current = setTimeout(() => {
+        if (quantityInputRef.current) quantityInputRef.current.focus();
+      }, 800);
+    } else {
+      if (barcodeDebounceRef.current) clearTimeout(barcodeDebounceRef.current);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [barcode, autoConfirmBarcode]);
+
+  // Debounced auto-add/auto-confirm logic for quantity
+  useEffect(() => {
+    if (autoConfirmQuantity && barcode.trim() && quantity.trim() && /^\d+$/.test(quantity) && parseInt(quantity) > 0) {
       if (lastAutoAddValue.current === quantity + '|' + barcode) return;
       if (quantityDebounceRef.current) clearTimeout(quantityDebounceRef.current);
       quantityDebounceRef.current = setTimeout(() => {
         addProduct();
         lastAutoAddValue.current = quantity + '|' + barcode;
-      }, 500);
+      }, 800);
     } else {
       if (quantityDebounceRef.current) clearTimeout(quantityDebounceRef.current);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quantity, barcode, autoAdd]);
+  }, [quantity, barcode, autoConfirmQuantity]);
 
   // Close sidebar when clicking outside
   useEffect(() => {
@@ -167,7 +182,7 @@ function App() {
   };
 
   const handleQuantityKeyPress = (e: React.KeyboardEvent) => {
-    if (!autoAdd && e.key === 'Enter') {
+    if (e.key === 'Enter') {
       addProduct();
     }
   };
@@ -242,12 +257,20 @@ function App() {
         className={`fixed top-0 left-0 h-full z-40 bg-white border-r border-gray-200 shadow-lg transition-transform duration-300 ease-in-out flex flex-col items-center py-8 gap-8 w-48 sm:w-64 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
       >
         <button
-          onClick={() => setAutoAdd(a => !a)}
-          className={`flex flex-col items-center gap-1 px-2 py-2 rounded-md font-semibold border w-32 sm:w-44 text-xs sm:text-sm ${autoAdd ? 'bg-blue-600 text-white border-blue-700' : 'bg-gray-200 text-gray-700 border-gray-400'} transition`}
+          onClick={() => setAutoConfirmBarcode(a => !a)}
+          className={`flex flex-col items-center gap-1 px-2 py-2 rounded-md font-semibold border w-32 sm:w-44 text-xs sm:text-sm ${autoConfirmBarcode ? 'bg-blue-600 text-white border-blue-700' : 'bg-gray-200 text-gray-700 border-gray-400'} transition`}
         >
           <Settings2 size={22} />
-          Auto Add
-          <span className="font-bold">{autoAdd ? 'On' : 'Off'}</span>
+          Auto Confirm Barcode
+          <span className="font-bold">{autoConfirmBarcode ? 'On' : 'Off'}</span>
+        </button>
+        <button
+          onClick={() => setAutoConfirmQuantity(a => !a)}
+          className={`flex flex-col items-center gap-1 px-2 py-2 rounded-md font-semibold border w-32 sm:w-44 text-xs sm:text-sm ${autoConfirmQuantity ? 'bg-blue-600 text-white border-blue-700' : 'bg-gray-200 text-gray-700 border-gray-400'} transition`}
+        >
+          <Settings2 size={22} />
+          Auto Confirm Quantity
+          <span className="font-bold">{autoConfirmQuantity ? 'On' : 'Off'}</span>
         </button>
         <button
           onClick={clearAllData}
@@ -304,6 +327,13 @@ function App() {
             Export Comparison
           </button>
         )}
+        <button
+          onClick={() => setShowProductTable(v => !v)}
+          className={`flex flex-col items-center gap-1 px-2 py-2 rounded-md font-semibold border w-32 sm:w-44 text-xs sm:text-sm ${showProductTable ? 'bg-blue-600 text-white border-blue-700' : 'bg-gray-200 text-gray-700 border-gray-400'} transition`}
+        >
+          <Settings2 size={22} />
+          {showProductTable ? 'Hide' : 'Show'} Products
+        </button>
       </div>
       {/* Overlay when sidebar is open */}
       {sidebarOpen && (
@@ -311,31 +341,6 @@ function App() {
           className="fixed inset-0 bg-black bg-opacity-20 z-20"
           onClick={() => setSidebarOpen(false)}
         />
-      )}
-      {/* Barcode Scanner Overlay */}
-      {showScanner && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black bg-opacity-80">
-          <div className="bg-white rounded-lg shadow-lg p-4 flex flex-col items-center">
-            <h2 className="mb-2 text-lg font-semibold text-gray-800">Scan Barcode</h2>
-            <BarcodeScannerComponent
-              width={300}
-              height={300}
-              onUpdate={(err, result) => {
-                if (result) {
-                  setBarcode(result.getText());
-                  setShowScanner(false);
-                  if (quantityInputRef.current) quantityInputRef.current.focus();
-                }
-              }}
-            />
-            <button
-              className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-              onClick={() => setShowScanner(false)}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
       )}
       {/* Main Content */}
       <div className="flex-1 max-w-full mx-auto">
@@ -367,14 +372,6 @@ function App() {
                   className="w-full px-3 py-3 text-lg border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   autoFocus
                 />
-                <button
-                  type="button"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-blue-500 hover:bg-blue-600 text-white rounded-full p-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                  onClick={() => setShowScanner(true)}
-                  aria-label="Open camera to scan barcode"
-                >
-                  <Camera size={22} />
-                </button>
               </div>
             </div>
             <div>
@@ -404,7 +401,7 @@ function App() {
               </button>
             </div>
           </div>
-          {products.length > 0 && (
+          {showProductTable && products.length > 0 && (
             <div className="mb-4">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 gap-2">
                 <h2 className="text-lg font-semibold text-gray-900">
